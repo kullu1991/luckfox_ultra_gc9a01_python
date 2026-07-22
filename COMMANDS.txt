@@ -1,0 +1,191 @@
+==============================================================================
+ GC9A01 on Luckfox Pico Ultra W -- command reference
+ (living file: new/updated commands get added here)
+==============================================================================
+On luckfox
+python -m venv venv --system-site-packages
+
+Repo layout (each app folder sits next to lib/ and fonts/):
+
+    lib/                     gc9a01py_linux.py            (the driver)
+    fonts/                   bitmap + truetype fonts
+    examples/                demos, speedometer, benchmark        [LUCKFOX]
+    video_player/            luckfox_video.py + test clips        [LUCKFOX]
+    ip_cam_viewer/           luckfox_rtsp.py                      [LUCKFOX]
+    mouse_mirror/            luckfox_receiver.py                  [LUCKFOX]
+      windows_app/           windows_sender.py (+ venv)           [PC]
+    video_streamer/          luckfox_receiver.py                  [LUCKFOX]
+      windows_app/           video_sender.py (+ venv, clips)      [PC]
+    youtube_streamer/        youtube_video_sender.py              [PC]
+                             (uses the video_streamer receiver)
+
+Wiring assumed by all Luckfox scripts (edit constants at the top of a script
+to change): DC=GPIO54, RESET=GPIO42, BACKLIGHT=GPIO71, SPI=/dev/spidev0.0.
+
+IMPORTANT: the Luckfox scripts import the driver via "../lib", so keep each
+app folder as a sibling of lib/ (and fonts/) when you copy them to the board.
+
+Legend:  [LUCKFOX] runs on the board (needs spidev + periphery + lib/).
+         [PC] runs on your Windows computer.
+Board IP used in examples below: 172.32.0.93  (find yours with `ip addr`).
+
+------------------------------------------------------------------------------
+ 0. ONE-TIME SETUP
+------------------------------------------------------------------------------
+
+[LUCKFOX] python deps on the board:
+    pip3 install spidev python-periphery
+
+[PC] deps for the streaming senders (each windows_app has its own venv):
+    cd mouse_mirror/windows_app   &&  pip install -r requirements.txt   # mss numpy requests
+    cd video_streamer/windows_app &&  pip install requests              # + ffmpeg on PATH
+
+------------------------------------------------------------------------------
+ 1. DEMOS  [LUCKFOX]  (run from the repo root)
+------------------------------------------------------------------------------
+
+    python3 examples/luckfox_hello.py            # random "Hello!" text
+    python3 examples/luckfox_chars.py            # font character pages
+    python3 examples/luckfox_lines.py            # random lines / rectangles
+    python3 examples/luckfox_scroll.py           # vertical scroll demo
+    python3 examples/toasters/luckfox_toasters.py        # flying-toaster sprites
+    python3 examples/truetype/luckfox_chango.py          # TrueType bitmap font
+    python3 examples/truetype/luckfox_noto_fonts.py      # centered TrueType text
+
+------------------------------------------------------------------------------
+ 2. SPEEDOMETER  [LUCKFOX]
+------------------------------------------------------------------------------
+
+    python3 examples/luckfox_speedometer.py          # live-drawn needle
+    python3 examples/luckfox_speedometer_sprites.py  # sprite (flipbook) needle
+
+------------------------------------------------------------------------------
+ 3. BENCHMARK  [LUCKFOX]  -- measure real display fps / throughput
+------------------------------------------------------------------------------
+
+    python3 examples/luckfox_benchmark.py
+
+------------------------------------------------------------------------------
+ 4. VIDEO PLAYER  [LUCKFOX]  -- play a video file on the board
+------------------------------------------------------------------------------
+
+    python3 video_player/luckfox_video.py video_player/song.mp4 --volume 10
+    python3 video_player/luckfox_video.py video_player/song2.mp4 --volume 10 --fast-decode --fps-auto
+    python3 video_player/luckfox_video.py video_player/song.mp4 --no-audio
+    python3 video_player/luckfox_video.py CLIP.mp4 --audio-file CLIP.wav --volume 10
+
+  Useful flags:
+    --fast-decode     skip H.264 deblocking (big decode speedup)
+    --skip-frames     also skip non-reference frames (choppier, faster)
+    --fps-auto        probe decode speed and pick a sustainable fps
+    --fps N           fixed target fps (default 24)
+    --keepalive S     panel keep-awake heartbeat seconds (default 2; 0=off)
+    --raw             input is a raw 240x240 rgb565be frame file
+    --loop            repeat forever
+
+  Decode-speed test (find speed=Nx; >1.0x = plays in real time):
+    time ffmpeg -skip_loop_filter all -i CLIP.mp4 \
+      -vf "scale=240:240:flags=fast_bilinear,fps=24" -f null -
+
+------------------------------------------------------------------------------
+ 5. IP CAMERA VIEWER  [LUCKFOX]  -- RTSP / ONVIF camera, standalone on the board
+------------------------------------------------------------------------------
+
+  Use the camera's low-res SUBSTREAM URL.
+    python3 ip_cam_viewer/luckfox_rtsp.py "rtsp://user:pass@CAM_IP:554/SUBSTREAM" --fps 15
+    python3 ip_cam_viewer/luckfox_rtsp.py "rtsp://..." --fps 10 --transport tcp --rotation 0
+
+  Common substream URLs:
+    Hikvision:  rtsp://user:pass@IP:554/Streaming/Channels/102
+    Dahua:      rtsp://user:pass@IP:554/cam/realmonitor?channel=1&subtype=1
+    Generic:    rtsp://user:pass@IP:554/onvif2
+
+  Verify the URL first (on any machine with ffmpeg):
+    ffplay "rtsp://user:pass@CAM_IP:554/SUBSTREAM"
+
+------------------------------------------------------------------------------
+ 6A. MOUSE MIRROR  -- stream the area around the PC cursor to the display
+------------------------------------------------------------------------------
+
+  Receiver on the board (video only for this app):
+    [LUCKFOX] python3 mouse_mirror/luckfox_receiver.py --port 8000
+    [LUCKFOX] ip addr                       # note the board IP
+
+  Sender on the PC:
+    [PC] cd mouse_mirror/windows_app
+    [PC] python windows_sender.py 172.32.0.93 8000
+    [PC] python windows_sender.py 172.32.0.93 8000 --fps 20 --zoom 2
+
+  The cursor stays centered; screen edges/corners pad with black.
+
+------------------------------------------------------------------------------
+ 6B. VIDEO STREAMER  -- PC decodes any source, board shows VIDEO + plays AUDIO
+------------------------------------------------------------------------------
+
+  Receiver on the board (video port 8000 + audio port 8001):
+    [LUCKFOX] python3 video_streamer/luckfox_receiver.py --port 8000 --audio-port 8001 --volume 15
+    [LUCKFOX] ip addr                       # note the board IP
+
+  Sender on the PC (audio is ON by default -> board speaker):
+    [PC] cd video_streamer/windows_app
+    [PC] python video_sender.py 172.32.0.93 8000 video.mp4 --fps 20 --loop
+    [PC] python video_sender.py 172.32.0.93 8000 video.mp4 --no-audio        # video only
+    [PC] python video_sender.py 172.32.0.93 8000 "rtsp://user:pass@CAM_IP:554/SUBSTREAM" --fps 15
+    [PC] python video_sender.py 172.32.0.93 8000 udp://@127.0.0.1:1234 --live --fps 24   # a VLC stream
+
+  VLC as source (verify the stream exists BEFORE running the sender):
+    [PC] "C:\Program Files\VideoLAN\VLC\vlc.exe" video.mp4 ^
+           --sout "#std{access=udp,mux=ts,dst=127.0.0.1:1234}"
+    [PC] ffplay udp://@127.0.0.1:1234
+
+  Audio notes:
+    - video_sender.py sends audio by default over --audio-port (default 8001);
+      it must match the receiver's --audio-port.
+    - Loudness: receiver --volume 0..30, or run `alsamixer` once on the board.
+
+  Health check of a receiver from the PC:
+    [PC] curl http://172.32.0.93:8000/          # replies "gc9a01 frame receiver ..."
+
+------------------------------------------------------------------------------
+ 6C. YOUTUBE STREAMER  -- stream a YouTube URL (uses the video_streamer receiver)
+------------------------------------------------------------------------------
+
+  Board: run the SAME video_streamer receiver as 6B:
+    [LUCKFOX] python3 video_streamer/luckfox_receiver.py --port 8000 --audio-port 8001 --volume 15
+
+  PC setup (yt-dlp resolves the URL; keep it updated):
+    [PC] cd youtube_streamer  &&  pip install -r requirements.txt   # requests yt-dlp (+ ffmpeg)
+    [PC] pip install -U yt-dlp                                       # if YouTube breaks it
+
+  PC run:
+    [PC] python youtube_streamer/youtube_video_sender.py 172.32.0.93 8000 "https://www.youtube.com/watch?v=XXXX"
+    [PC] python youtube_streamer/youtube_video_sender.py 172.32.0.93 8000 "<url>" --fps 20 --max-height 360
+    [PC] python youtube_streamer/youtube_video_sender.py 172.32.0.93 8000 "<url>" --no-audio
+
+  If playback is choppy, in order of impact:
+    --lowest        use the lowest-res YouTube stream (smaller/smoother download)
+    --fps 12        fewer 240x240 frames/sec -> less traffic to the board
+    [PC] python youtube_streamer/youtube_video_sender.py 172.32.0.93 8000 "<url>" --lowest --fps 15
+
+==============================================================================
+ CHANGELOG (add a line when commands change)
+==============================================================================
+ - initial: demos, speedometer, benchmark, video, rtsp, streaming senders
+ - streaming now carries AUDIO: receiver --audio-port/--volume,
+   video_sender sends audio by default (--no-audio to disable)
+ - folders reorganized: video_player/, ip_cam_viewer/, mouse_mirror/ and
+   video_streamer/ (each with its own windows_app/); paths updated. Note:
+   prepare_video.py was removed.
+ - added youtube_streamer/youtube_video_sender.py: stream a YouTube URL
+   (yt-dlp resolves it) to the video_streamer receiver, video + audio.
+ - youtube sender hardened: yt-dlp now downloads+retries (survives dropped
+   sockets), forces H.264 fmt 18 (no heavy AV1), single muxed source for
+   A/V sync; ffmpeg sends audio straight to the board's audio TCP port.
+ - fixed audio underruns: youtube sender reads video in a thread (POST no
+   longer blocks ffmpeg -> audio stays fed, drops frames instead); receiver
+   aplay gets a 0.5s buffer (AUDIO_BUFFER_US).
+ - youtube sender: added --lowest (grab the lowest-res muxed YouTube stream)
+   to cut download bandwidth when the internet is the bottleneck.
+ - fixed ~2fps regression: audio and video are now SEPARATE yt-dlp|ffmpeg
+   pipelines (single-ffmpeg coupling let audio backpressure starve video).
+   Default --fps is now 15.

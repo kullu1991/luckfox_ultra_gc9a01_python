@@ -1,0 +1,23 @@
+.DS_Store
+.vscode
+.idea
+__pycache__
+sphinx
+*~
+*.pyc
+*.o
+*.P
+
+# Video test clips
+*.mp4
+
+# Python virtual environments
+venv/
+.venv/
+**/venv/
+**/.venv/
+
+# Bootstrap / generated artifacts
+get-pip.py
+*.wav
+*.rgb565
