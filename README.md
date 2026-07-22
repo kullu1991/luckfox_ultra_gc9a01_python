@@ -59,16 +59,17 @@ node exists: `ls /sys/bus/spi/devices/`.
 
 ### On the Luckfox (board side)
 
-```bash
-# Python deps (spidev + periphery). A venv with system packages works well:
-python3 -m venv venv --system-site-packages
-. venv/bin/activate
-pip install spidev python-periphery
+The Luckfox image already ships with `spidev` and `python-periphery`, so
+there's nothing to install for the display itself — just run a script:
 
+```bash
 # Sanity check: a demo
 python3 examples/luckfox_hello.py
 ```
 
+> If you prefer a virtualenv, create it with system packages so it can see the
+> pre-installed `spidev`/`periphery`: `python3 -m venv venv --system-site-packages`
+>
 > Keep each app folder next to `lib/` and `fonts/` — the scripts import the
 > driver via `../lib`.
 
@@ -167,8 +168,9 @@ every flag, tagged `[LUCKFOX]` / `[PC]`.
 
 ## 🧰 Requirements
 
-- **Board:** Luckfox Pico Ultra W with Linux, `python3`, `spidev`,
-  `python-periphery`; `ffmpeg` + `aplay`/`amixer` for video/audio.
+- **Board:** Luckfox Pico Ultra W (Linux) — `python3`, `spidev` and
+  `python-periphery` come pre-installed; `ffmpeg` + `aplay`/`amixer` for the
+  video/audio features.
 - **PC:** Python 3 with `requests` (+ `mss numpy` for the mouse mirror,
   `yt-dlp` for YouTube), and `ffmpeg` on `PATH`.
 
